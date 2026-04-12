@@ -17,6 +17,14 @@ body {
 
 #root {
   min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+#root > * {
+  flex: 1;
+  min-height: 0;
 }
 
 button {

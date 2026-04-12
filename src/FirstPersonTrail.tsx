@@ -4,9 +4,7 @@ import "./FirstPersonTrail.css";
 
 export type FirstPersonTrailProps = {
   boardLength: number;
-  /** Idle camera: current turn player’s board index (integer). */
   viewIndex: number;
-  /** During draw animation: board indices to lerp between (inclusive). */
   animFromIdx: number | null;
   animToIdx: number | null;
   animDurationMs: number | null;
@@ -15,8 +13,8 @@ export type FirstPersonTrailProps = {
 };
 
 /**
- * Drive visuals from **board index** (not 0–1 trail fraction) so each step
- * produces a visible shift; normalized progress was too subtle on a long board.
+ * Forward motion = continuous scroll + smooth progress along the trail.
+ * Avoids `%` on index (was causing pops) and large high‑frequency sines (was “wonky”).
  */
 export function FirstPersonTrail({
   boardLength,
@@ -51,109 +49,122 @@ export function FirstPersonTrail({
 
     const idx = displayIdxRef.current;
     const maxI = Math.max(1, boardLength - 1);
-    const climb = idx / maxI;
+    const progress = Math.min(1, Math.max(0, idx / maxI));
+    /** Continuous “walked distance” for scrolling — no modulo. */
+    const forwardPx = idx * 22;
+    /** One slow sway over the whole trail (subtle). */
+    const lateral = Math.sin(progress * Math.PI * 2) * 10;
 
-    const phase = idx * 0.55;
-    const parallax = Math.sin(phase) * 72 + Math.cos(phase * 0.31) * 26;
-    const walkPulse = Math.sin(idx * 1.05) * (h * 0.022);
-    const forwardScroll = (idx * 26) % 180;
-    const horizonLift = climb * h * 0.07;
+    const cx = w / 2 + lateral;
+    const horizonY = h * (0.33 + progress * 0.1);
+    const roadTopW = w * (0.11 + progress * 0.02);
+    const roadBotW = w * 0.44;
 
     ctx.fillStyle = "#120810";
     ctx.fillRect(0, 0, w, h);
 
     const sky = ctx.createLinearGradient(0, 0, 0, h);
     sky.addColorStop(0, "#fff5fb");
-    sky.addColorStop(0.35, "#ffc9e8");
-    sky.addColorStop(0.72, "#c678a8");
-    sky.addColorStop(1, "#4a2840");
+    sky.addColorStop(0.38, "#ffc9e8");
+    sky.addColorStop(0.75, "#a85d7a");
+    sky.addColorStop(1, "#2d1528");
     ctx.fillStyle = sky;
-    ctx.fillRect(0, 0, w, h * 0.62);
-
-    const horizonY = h * 0.36 + horizonLift + walkPulse;
+    ctx.fillRect(0, 0, w, h * 0.58);
 
     ctx.save();
-    ctx.translate(parallax * 0.14 + walkPulse * 0.4, -forwardScroll * 0.42);
-
-    ctx.fillStyle = "rgba(180, 100, 140, 0.35)";
+    ctx.translate(lateral * 0.08, 0);
+    ctx.fillStyle = "rgba(140, 80, 110, 0.28)";
     ctx.beginPath();
-    ctx.moveTo(-80, horizonY + 40);
-    ctx.quadraticCurveTo(w * 0.2, horizonY - 30, w * 0.45, horizonY + 20);
-    ctx.quadraticCurveTo(w * 0.7, horizonY + 50, w + 120, horizonY);
-    ctx.lineTo(w + 120, h + forwardScroll);
-    ctx.lineTo(-80, h + forwardScroll);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.fillStyle = "rgba(120, 70, 110, 0.4)";
-    ctx.beginPath();
-    ctx.moveTo(-100, horizonY + 55);
-    ctx.quadraticCurveTo(w * 0.25, horizonY - 8, w * 0.55, horizonY + 35);
-    ctx.quadraticCurveTo(w * 0.85, horizonY + 60, w + 100, horizonY + 25);
-    ctx.lineTo(w + 100, h + forwardScroll);
-    ctx.lineTo(-100, h + forwardScroll);
+    ctx.moveTo(-60, horizonY + 50);
+    ctx.quadraticCurveTo(w * 0.25, horizonY - 20, w * 0.55, horizonY + 28);
+    ctx.lineTo(w + 80, horizonY + 10);
+    ctx.lineTo(w + 80, h);
+    ctx.lineTo(-60, h);
     ctx.closePath();
     ctx.fill();
     ctx.restore();
 
-    const roadGrad = ctx.createLinearGradient(w / 2, horizonY, w / 2, h);
-    roadGrad.addColorStop(0, "#ffd6ea");
-    roadGrad.addColorStop(0.45, "#ff9ecd");
-    roadGrad.addColorStop(1, "#e85d9b");
+    const roadGrad = ctx.createLinearGradient(cx, horizonY, cx, h);
+    roadGrad.addColorStop(0, "#ffe3f2");
+    roadGrad.addColorStop(0.55, "#ff9ecd");
+    roadGrad.addColorStop(1, "#d9487e");
     ctx.fillStyle = roadGrad;
     ctx.beginPath();
-    const roadTopW = w * (0.14 - climb * 0.02);
-    const roadBotW = w * 0.46;
-    const roadSkew = parallax * 0.08 + walkPulse * 0.15;
-    ctx.moveTo(w / 2 - roadBotW / 2, h);
-    ctx.lineTo(w / 2 + roadBotW / 2, h);
-    ctx.lineTo(w / 2 + roadTopW / 2 + roadSkew, horizonY);
-    ctx.lineTo(w / 2 - roadTopW / 2 + roadSkew, horizonY);
+    ctx.moveTo(cx - roadBotW / 2, h);
+    ctx.lineTo(cx + roadBotW / 2, h);
+    ctx.lineTo(cx + roadTopW / 2, horizonY);
+    ctx.lineTo(cx - roadTopW / 2, horizonY);
     ctx.closePath();
     ctx.fill();
 
+    ctx.strokeStyle = "rgba(62, 22, 48, 0.75)";
+    ctx.lineWidth = 4;
+    ctx.lineJoin = "round";
+    ctx.beginPath();
+    ctx.moveTo(cx - roadBotW / 2, h);
+    ctx.lineTo(cx - roadTopW / 2, horizonY);
+    ctx.moveTo(cx + roadBotW / 2, h);
+    ctx.lineTo(cx + roadTopW / 2, horizonY);
+    ctx.stroke();
+
     ctx.save();
-    ctx.translate(0, -forwardScroll * 0.35);
-    ctx.strokeStyle = "rgba(255,255,255,0.55)";
+    ctx.beginPath();
+    ctx.moveTo(cx - roadBotW / 2, h);
+    ctx.lineTo(cx + roadBotW / 2, h);
+    ctx.lineTo(cx + roadTopW / 2, horizonY);
+    ctx.lineTo(cx - roadTopW / 2, horizonY);
+    ctx.closePath();
+    ctx.clip();
+
+    ctx.strokeStyle = "rgba(255,255,255,0.42)";
     ctx.lineWidth = 2;
-    const stripes = 10;
-    for (let i = 0; i < stripes; i++) {
-      const f = i / stripes;
-      const f2 = (i + 1) / stripes;
-      const y1 = horizonY + (h - horizonY) * f;
-      const y2 = horizonY + (h - horizonY) * f2;
-      const xMid = w / 2 + parallax * 0.06 * (1 - f) + roadSkew * (1 - f);
+    const band = 38;
+    const scroll = forwardPx * 0.32;
+    for (let y = horizonY - scroll - 400; y < h + 400; y += band) {
+      const t = (y - horizonY) / (h - horizonY);
+      if (t < 0 || t > 1.02) continue;
+      const hw = lerp(roadTopW / 2, roadBotW / 2, Math.max(0, Math.min(1, t)));
       ctx.beginPath();
-      ctx.moveTo(xMid, y1);
-      ctx.lineTo(xMid, y2);
+      ctx.moveTo(cx - hw, y);
+      ctx.lineTo(cx + hw, y);
       ctx.stroke();
     }
     ctx.restore();
 
+    ctx.strokeStyle = "rgba(255,255,255,0.85)";
+    ctx.lineWidth = 3;
+    ctx.setLineDash([14, 18]);
+    ctx.lineDashOffset = forwardPx * 0.55;
+    ctx.beginPath();
+    ctx.moveTo(cx, horizonY + 8);
+    ctx.lineTo(cx, h);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
     const mist = ctx.createRadialGradient(
-      w / 2 + parallax * 0.05,
-      horizonY - h * 0.05,
-      h * 0.05,
+      cx,
+      horizonY - h * 0.02,
+      h * 0.06,
       w / 2,
-      horizonY * 0.6,
-      h * 0.95,
+      horizonY * 0.55,
+      h * 0.92,
     );
     mist.addColorStop(0, "rgba(255, 250, 252, 0)");
-    mist.addColorStop(0.45, "rgba(255, 240, 248, 0.12)");
-    mist.addColorStop(1, "rgba(40, 20, 35, 0.55)");
+    mist.addColorStop(0.5, "rgba(255, 235, 246, 0.1)");
+    mist.addColorStop(1, "rgba(25, 10, 22, 0.5)");
     ctx.fillStyle = mist;
     ctx.fillRect(0, 0, w, h);
 
     const vignette = ctx.createRadialGradient(
       w / 2,
       h / 2,
-      h * 0.15,
+      h * 0.12,
       w / 2,
       h / 2,
-      h * 0.75,
+      h * 0.78,
     );
     vignette.addColorStop(0, "rgba(0,0,0,0)");
-    vignette.addColorStop(1, "rgba(10, 5, 12, 0.45)");
+    vignette.addColorStop(1, "rgba(8, 4, 10, 0.42)");
     ctx.fillStyle = vignette;
     ctx.fillRect(0, 0, w, h);
   }, [boardLength]);
