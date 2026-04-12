@@ -1,14 +1,26 @@
-import { useReducer } from "react";
-import { CandyRoadBoard } from "./CandyRoadBoard";
+import {
+  useCallback,
+  useLayoutEffect,
+  useReducer,
+  useRef,
+  useState,
+} from "react";
+import { FirstPersonTrail } from "./FirstPersonTrail";
+import { MiniMapBoard } from "./MiniMapBoard";
 import { castleIndex } from "./game/board";
 import { gameReducer, initialState } from "./game/gameReducer";
+import {
+  animationDurationMs,
+  findMover,
+  trailProgress,
+} from "./game/fpMath";
 import {
   CASTLE_ICON,
   START_ICON,
   iconForLandmark,
   pawnIcon,
 } from "./game/icons";
-import type { BoardSpace, CandyColor, Card } from "./game/types";
+import type { BoardSpace, CandyColor, Card, Player } from "./game/types";
 import "./App.css";
 
 const COLOR_HEX: Record<CandyColor, string> = {
@@ -84,10 +96,53 @@ function WherePawn({ space }: { space: BoardSpace }) {
   return null;
 }
 
+type TrailAnim = {
+  key: number;
+  fromT: number;
+  toT: number;
+  durationMs: number;
+};
+
 export default function App() {
   const [state, dispatch] = useReducer(gameReducer, undefined, initialState);
   const castle = castleIndex(state.board);
   const current = state.players[state.currentPlayerIndex];
+
+  const playersSnapshotRef = useRef<Player[] | null>(null);
+  const [trailAnim, setTrailAnim] = useState<TrailAnim | null>(null);
+
+  const idleTrailT = trailProgress(
+    state.players[state.currentPlayerIndex]?.position ?? 0,
+    state.board.length,
+  );
+
+  useLayoutEffect(() => {
+    const next = state.players.map((p) => ({ ...p }));
+    if (playersSnapshotRef.current === null) {
+      playersSnapshotRef.current = next;
+      return;
+    }
+    const prev = playersSnapshotRef.current;
+    playersSnapshotRef.current = next;
+    const move = findMover(prev, next);
+    if (!move || move.from === move.to) return;
+    const bl = state.board.length;
+    setTrailAnim({
+      key: Date.now(),
+      fromT: trailProgress(move.from, bl),
+      toT: trailProgress(move.to, bl),
+      durationMs: animationDurationMs(move.from, move.to),
+    });
+  }, [state.players, state.board.length]);
+
+  const onAnimDone = useCallback(() => {
+    setTrailAnim(null);
+  }, []);
+
+  const onNewGame = () => {
+    setTrailAnim(null);
+    dispatch({ type: "NEW_GAME" });
+  };
 
   return (
     <div className="app">
@@ -97,13 +152,25 @@ export default function App() {
       </header>
 
       <div className="main-layout">
-        <section className="board-wrap" aria-label="Candy road board">
-          <CandyRoadBoard
+        <div className="fp-wrap">
+          <FirstPersonTrail
+            boardLength={state.board.length}
+            trailT={idleTrailT}
+            animFromT={trailAnim?.fromT ?? null}
+            animToT={trailAnim?.toT ?? null}
+            animDurationMs={trailAnim?.durationMs ?? null}
+            animKey={trailAnim?.key ?? 0}
+            onAnimationComplete={onAnimDone}
+          />
+        </div>
+
+        <div className="mini-map-wrap">
+          <MiniMapBoard
             board={state.board}
             players={state.players}
             castleIndex={castle}
           />
-        </section>
+        </div>
 
         <aside className="side-panel" aria-label="Game controls">
           <div className="status">
@@ -128,7 +195,7 @@ export default function App() {
             <button
               type="button"
               className="btn btn--large btn--block"
-              onClick={() => dispatch({ type: "NEW_GAME" })}
+              onClick={onNewGame}
             >
               New game
             </button>
