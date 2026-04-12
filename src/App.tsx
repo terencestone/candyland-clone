@@ -9,11 +9,7 @@ import { FirstPersonTrail } from "./FirstPersonTrail";
 import { MiniMapBoard } from "./MiniMapBoard";
 import { castleIndex } from "./game/board";
 import { gameReducer, initialState } from "./game/gameReducer";
-import {
-  animationDurationMs,
-  findMover,
-  trailProgress,
-} from "./game/fpMath";
+import { animationDurationMs, findMover } from "./game/fpMath";
 import {
   CASTLE_ICON,
   START_ICON,
@@ -98,8 +94,8 @@ function WherePawn({ space }: { space: BoardSpace }) {
 
 type TrailAnim = {
   key: number;
-  fromT: number;
-  toT: number;
+  fromIdx: number;
+  toIdx: number;
   durationMs: number;
 };
 
@@ -111,10 +107,8 @@ export default function App() {
   const playersSnapshotRef = useRef<Player[] | null>(null);
   const [trailAnim, setTrailAnim] = useState<TrailAnim | null>(null);
 
-  const idleTrailT = trailProgress(
-    state.players[state.currentPlayerIndex]?.position ?? 0,
-    state.board.length,
-  );
+  const idleViewIndex =
+    state.players[state.currentPlayerIndex]?.position ?? 0;
 
   useLayoutEffect(() => {
     const next = state.players.map((p) => ({ ...p }));
@@ -126,11 +120,10 @@ export default function App() {
     playersSnapshotRef.current = next;
     const move = findMover(prev, next);
     if (!move || move.from === move.to) return;
-    const bl = state.board.length;
     setTrailAnim({
       key: Date.now(),
-      fromT: trailProgress(move.from, bl),
-      toT: trailProgress(move.to, bl),
+      fromIdx: move.from,
+      toIdx: move.to,
       durationMs: animationDurationMs(move.from, move.to),
     });
   }, [state.players, state.board.length]);
@@ -155,9 +148,9 @@ export default function App() {
         <div className="fp-wrap">
           <FirstPersonTrail
             boardLength={state.board.length}
-            trailT={idleTrailT}
-            animFromT={trailAnim?.fromT ?? null}
-            animToT={trailAnim?.toT ?? null}
+            viewIndex={idleViewIndex}
+            animFromIdx={trailAnim?.fromIdx ?? null}
+            animToIdx={trailAnim?.toIdx ?? null}
             animDurationMs={trailAnim?.durationMs ?? null}
             animKey={trailAnim?.key ?? 0}
             onAnimationComplete={onAnimDone}
