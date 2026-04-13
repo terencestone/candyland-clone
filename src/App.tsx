@@ -103,6 +103,9 @@ export default function App() {
   const [state, dispatch] = useReducer(gameReducer, undefined, initialState);
   const castle = castleIndex(state.board);
   const current = state.players[state.currentPlayerIndex];
+  const winner =
+    state.winnerIndex != null ? state.players[state.winnerIndex] : null;
+  const turnPlayer = winner ?? current;
 
   const playersSnapshotRef = useRef<Player[] | null>(null);
   const [trailAnim, setTrailAnim] = useState<TrailAnim | null>(null);
@@ -147,14 +150,46 @@ export default function App() {
       <div className="main-layout">
         <div className="fp-wrap">
           <FirstPersonTrail
-            boardLength={state.board.length}
+            board={state.board}
             viewIndex={idleViewIndex}
+            turnPawnEmoji={turnPlayer ? pawnIcon(turnPlayer.name) : ""}
+            turnLabel={
+              state.phase === "won" && winner
+                ? `${winner.name} won the game`
+                : turnPlayer
+                  ? `${turnPlayer.name}'s turn`
+                  : undefined
+            }
             animFromIdx={trailAnim?.fromIdx ?? null}
             animToIdx={trailAnim?.toIdx ?? null}
             animDurationMs={trailAnim?.durationMs ?? null}
             animKey={trailAnim?.key ?? 0}
             onAnimationComplete={onAnimDone}
           />
+          {state.phase === "won" && winner ? (
+            <div
+              className="win-overlay"
+              role="alertdialog"
+              aria-modal="true"
+              aria-labelledby="win-overlay-title"
+              aria-describedby="win-overlay-desc"
+            >
+              <div className="win-overlay__panel">
+                <h2 id="win-overlay-title" className="win-overlay__title">
+                  You Win!
+                </h2>
+                <p id="win-overlay-desc" className="win-overlay__names">
+                  <span className="win-overlay__emoji" aria-hidden>
+                    {pawnIcon(winner.name)}
+                  </span>{" "}
+                  <span className="win-overlay__winner">{winner.name}</span>
+                </p>
+                <p className="win-overlay__hint">
+                  Game over — use <strong>New game</strong> to play again.
+                </p>
+              </div>
+            </div>
+          ) : null}
         </div>
 
         <div className="mini-map-wrap">
@@ -168,12 +203,17 @@ export default function App() {
         <aside className="side-panel" aria-label="Game controls">
           <div className="status">
             <p className="log">{state.log}</p>
-            {state.phase === "play" && (
+            {state.phase === "play" ? (
               <p className="turn">
                 <span className="turn__label">Whose turn</span>{" "}
                 <strong className="turn__name">{current?.name}</strong>
               </p>
-            )}
+            ) : state.phase === "won" && winner ? (
+              <p className="turn turn--won" role="status">
+                <span className="turn__label">Winner</span>{" "}
+                <strong className="turn__name">{winner.name}</strong>
+              </p>
+            ) : null}
           </div>
 
           <div className="actions actions--stack">

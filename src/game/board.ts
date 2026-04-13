@@ -63,22 +63,28 @@ export function findLandmarkIndex(
   return idx === -1 ? board.length - 1 : idx;
 }
 
+/**
+ * Next nth path square of `color` strictly after `fromIndex`.
+ * Candy Land rule: if there is no such square before the castle, move to the
+ * castle (last index) instead of staying put.
+ */
 export function findNthColorAhead(
   board: BoardSpace[],
   fromIndex: number,
   color: CandyColor,
   n: 1 | 2,
 ): number {
+  const end = castleIndex(board);
   let found = 0;
   for (let i = fromIndex + 1; i < board.length; i++) {
     const s = board[i];
+    if (s.kind === "castle") break;
     if (s.kind === "path" && s.color === color) {
       found++;
       if (found === n) return i;
     }
-    if (s.kind === "castle") break;
   }
-  return fromIndex;
+  return end;
 }
 
 export function applyColorCard(
@@ -87,9 +93,10 @@ export function applyColorCard(
   color: CandyColor,
   count: 1 | 2,
 ): number {
+  const castle = castleIndex(board);
   const first = findNthColorAhead(board, fromIndex, color, 1);
   if (count === 1) return first;
-  if (first === fromIndex) return fromIndex;
+  if (first >= castle) return castle;
   return findNthColorAhead(board, first, color, 1);
 }
 

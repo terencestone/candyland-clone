@@ -1,10 +1,21 @@
 import { useCallback, useEffect, useRef } from "react";
 import { easeOutCubic, lerp } from "./game/fpMath";
+import { trailSpaceFill } from "./game/candyColors";
+import {
+  CASTLE_ICON,
+  START_ICON,
+  iconForLandmark,
+} from "./game/icons";
+import type { BoardSpace } from "./game/types";
 import "./FirstPersonTrail.css";
 
 export type FirstPersonTrailProps = {
-  boardLength: number;
+  board: BoardSpace[];
   viewIndex: number;
+  /** Pawn emoji for the player whose turn it is (top-right HUD). */
+  turnPawnEmoji: string;
+  /** Screen reader label, e.g. "Archer's turn". */
+  turnLabel?: string;
   animFromIdx: number | null;
   animToIdx: number | null;
   animDurationMs: number | null;
@@ -12,13 +23,39 @@ export type FirstPersonTrailProps = {
   onAnimationComplete?: () => void;
 };
 
+const VISIBLE_CELLS = 8;
+const ROAD_BANDS = 16;
+
+function halfRoadWidth(f: number, roadTopW: number, roadBotW: number): number {
+  return lerp(roadTopW / 2, roadBotW / 2, Math.max(0, Math.min(1, f)));
+}
+
+function cellIndexAt(boardLen: number, p: number): number {
+  return Math.min(boardLen - 1, Math.max(0, Math.floor(p)));
+}
+
+function fpSpaceIcon(space: BoardSpace): string | null {
+  switch (space.kind) {
+    case "landmark":
+      return iconForLandmark(space.landmarkId);
+    case "start":
+      return START_ICON;
+    case "castle":
+      return CASTLE_ICON;
+    case "path":
+      return null;
+  }
+}
+
 /**
- * Forward motion = continuous scroll + smooth progress along the trail.
- * Avoids `%` on index (was causing pops) and large high‑frequency sines (was “wonky”).
+ * Colored FP road: each band maps to a trail index ahead of `idx`, so when
+ * `idx` increases, squares scroll toward the horizon like walking the board.
  */
 export function FirstPersonTrail({
-  boardLength,
+  board,
   viewIndex,
+  turnPawnEmoji,
+  turnLabel,
   animFromIdx,
   animToIdx,
   animDurationMs,
@@ -30,11 +67,16 @@ export function FirstPersonTrail({
   const displayIdxRef = useRef(viewIndex);
   const viewIndexRef = useRef(viewIndex);
   viewIndexRef.current = viewIndex;
+  const boardRef = useRef(board);
+  boardRef.current = board;
+  const turnPawnEmojiRef = useRef(turnPawnEmoji);
+  turnPawnEmojiRef.current = turnPawnEmoji;
 
   const paint = useCallback(() => {
     const canvas = canvasRef.current;
     const wrap = wrapRef.current;
-    if (!canvas || !wrap) return;
+    const boardNow = boardRef.current;
+    if (!canvas || !wrap || boardNow.length === 0) return;
     const rect = wrap.getBoundingClientRect();
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     const w = Math.max(1, Math.floor(rect.width));
@@ -47,14 +89,13 @@ export function FirstPersonTrail({
     if (!ctx) return;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
+    const bl = boardNow.length;
     const idx = displayIdxRef.current;
-    const maxI = Math.max(1, boardLength - 1);
+    const maxI = Math.max(1, bl - 1);
     const progress = Math.min(1, Math.max(0, idx / maxI));
-    /** Continuous “walked distance” for scrolling — no modulo. */
     const forwardPx = idx * 22;
-    /** One slow sway over the whole trail (subtle). */
-    const lateral = Math.sin(progress * Math.PI * 2) * 10;
 
+    const lateral = Math.sin(progress * Math.PI * 2) * 10;
     const cx = w / 2 + lateral;
     const horizonY = h * (0.33 + progress * 0.1);
     const roadTopW = w * (0.11 + progress * 0.02);
@@ -84,20 +125,85 @@ export function FirstPersonTrail({
     ctx.fill();
     ctx.restore();
 
-    const roadGrad = ctx.createLinearGradient(cx, horizonY, cx, h);
-    roadGrad.addColorStop(0, "#ffe3f2");
-    roadGrad.addColorStop(0.55, "#ff9ecd");
-    roadGrad.addColorStop(1, "#d9487e");
-    ctx.fillStyle = roadGrad;
+    ctx.save();
     ctx.beginPath();
     ctx.moveTo(cx - roadBotW / 2, h);
     ctx.lineTo(cx + roadBotW / 2, h);
     ctx.lineTo(cx + roadTopW / 2, horizonY);
     ctx.lineTo(cx - roadTopW / 2, horizonY);
     ctx.closePath();
-    ctx.fill();
+    ctx.clip();
 
-    ctx.strokeStyle = "rgba(62, 22, 48, 0.75)";
+    type Band = {
+      f0: number;
+      f1: number;
+      y0: number;
+      y1: number;
+      midF: number;
+      ci: number;
+    };
+    const bands: Band[] = [];
+    for (let i = 0; i < ROAD_BANDS; i++) {
+      const f0 = i / ROAD_BANDS;
+      const f1 = (i + 1) / ROAD_BANDS;
+      const y0 = horizonY + f0 * (h - horizonY);
+      const y1 = horizonY + f1 * (h - horizonY);
+      const midF = (f0 + f1) / 2;
+      const trailPos = idx + VISIBLE_CELLS * (1 - midF);
+      const ci = cellIndexAt(bl, trailPos);
+      const space = boardNow[ci];
+      ctx.fillStyle = trailSpaceFill(space);
+      const hw0 = halfRoadWidth(f0, roadTopW, roadBotW);
+      const hw1 = halfRoadWidth(f1, roadTopW, roadBotW);
+      ctx.beginPath();
+      ctx.moveTo(cx - hw0, y0);
+      ctx.lineTo(cx + hw0, y0);
+      ctx.lineTo(cx + hw1, y1);
+      ctx.lineTo(cx - hw1, y1);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = "rgba(255,255,255,0.22)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      bands.push({ f0, f1, y0, y1, midF, ci });
+    }
+
+    let b = 0;
+    while (b < bands.length) {
+      const ci = bands[b].ci;
+      let e = b + 1;
+      while (e < bands.length && bands[e].ci === ci) e++;
+      const yTop = bands[b].y0;
+      const yBot = bands[e - 1].y1;
+      const midF = (bands[b].f0 + bands[e - 1].f1) / 2;
+      const icon = fpSpaceIcon(boardNow[ci]);
+      if (icon) {
+        const cy = (yTop + yBot) / 2;
+        const span = yBot - yTop;
+        const fontSize = Math.max(
+          14,
+          Math.min(52, span * 0.92 + midF * 18),
+        );
+        const plaqueR = Math.min(halfRoadWidth(midF, roadTopW, roadBotW), fontSize * 0.95);
+        ctx.fillStyle = "rgba(255,255,255,0.28)";
+        ctx.beginPath();
+        ctx.ellipse(cx, cy, plaqueR * 0.92, span * 0.42, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.font = `${fontSize}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.shadowColor = "rgba(0,0,0,0.4)";
+        ctx.shadowBlur = 5;
+        ctx.shadowOffsetY = 1;
+        ctx.fillText(icon, cx, cy);
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetY = 0;
+      }
+      b = e;
+    }
+    ctx.restore();
+
+    ctx.strokeStyle = "rgba(62, 22, 48, 0.78)";
     ctx.lineWidth = 4;
     ctx.lineJoin = "round";
     ctx.beginPath();
@@ -115,31 +221,16 @@ export function FirstPersonTrail({
     ctx.lineTo(cx - roadTopW / 2, horizonY);
     ctx.closePath();
     ctx.clip();
-
-    ctx.strokeStyle = "rgba(255,255,255,0.42)";
-    ctx.lineWidth = 2;
-    const band = 38;
-    const scroll = forwardPx * 0.32;
-    for (let y = horizonY - scroll - 400; y < h + 400; y += band) {
-      const t = (y - horizonY) / (h - horizonY);
-      if (t < 0 || t > 1.02) continue;
-      const hw = lerp(roadTopW / 2, roadBotW / 2, Math.max(0, Math.min(1, t)));
-      ctx.beginPath();
-      ctx.moveTo(cx - hw, y);
-      ctx.lineTo(cx + hw, y);
-      ctx.stroke();
-    }
-    ctx.restore();
-
-    ctx.strokeStyle = "rgba(255,255,255,0.85)";
-    ctx.lineWidth = 3;
-    ctx.setLineDash([14, 18]);
+    ctx.strokeStyle = "rgba(255,255,255,0.5)";
+    ctx.lineWidth = 2.5;
+    ctx.setLineDash([12, 16]);
     ctx.lineDashOffset = forwardPx * 0.55;
     ctx.beginPath();
-    ctx.moveTo(cx, horizonY + 8);
+    ctx.moveTo(cx, horizonY + 6);
     ctx.lineTo(cx, h);
     ctx.stroke();
     ctx.setLineDash([]);
+    ctx.restore();
 
     const mist = ctx.createRadialGradient(
       cx,
@@ -150,8 +241,8 @@ export function FirstPersonTrail({
       h * 0.92,
     );
     mist.addColorStop(0, "rgba(255, 250, 252, 0)");
-    mist.addColorStop(0.5, "rgba(255, 235, 246, 0.1)");
-    mist.addColorStop(1, "rgba(25, 10, 22, 0.5)");
+    mist.addColorStop(0.5, "rgba(255, 235, 246, 0.08)");
+    mist.addColorStop(1, "rgba(25, 10, 22, 0.45)");
     ctx.fillStyle = mist;
     ctx.fillRect(0, 0, w, h);
 
@@ -164,10 +255,41 @@ export function FirstPersonTrail({
       h * 0.78,
     );
     vignette.addColorStop(0, "rgba(0,0,0,0)");
-    vignette.addColorStop(1, "rgba(8, 4, 10, 0.42)");
+    vignette.addColorStop(1, "rgba(8, 4, 10, 0.38)");
     ctx.fillStyle = vignette;
     ctx.fillRect(0, 0, w, h);
-  }, [boardLength]);
+
+    const turnEmoji = turnPawnEmojiRef.current.trim();
+    if (turnEmoji) {
+      const pad = 12;
+      const fontSize = Math.min(46, Math.max(26, w * 0.082));
+      const box = fontSize * 1.42;
+      const cxT = w - pad - box / 2;
+      const cyT = pad + box / 2;
+      const x0 = cxT - box / 2;
+      const y0 = cyT - box / 2;
+
+      ctx.save();
+      ctx.fillStyle = "rgba(32, 16, 28, 0.55)";
+      ctx.strokeStyle = "rgba(255,255,255,0.32)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.roundRect(x0, y0, box, box, 14);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.font = `${fontSize}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.shadowColor = "rgba(0,0,0,0.35)";
+      ctx.shadowBlur = 4;
+      ctx.shadowOffsetY = 1;
+      ctx.fillText(turnEmoji, cxT, cyT);
+      ctx.shadowBlur = 0;
+      ctx.shadowOffsetY = 0;
+      ctx.restore();
+    }
+  }, []);
 
   useEffect(() => {
     const idle =
@@ -230,8 +352,15 @@ export function FirstPersonTrail({
     return () => ro.disconnect();
   }, [paint]);
 
+  useEffect(() => {
+    paint();
+  }, [turnPawnEmoji, paint]);
+
   return (
     <div ref={wrapRef} className="fp-trail">
+      {turnLabel ? (
+        <span className="fp-trail__sr-only">{turnLabel}</span>
+      ) : null}
       <canvas ref={canvasRef} className="fp-trail__canvas" aria-hidden />
     </div>
   );
