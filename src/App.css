@@ -38,6 +38,7 @@
 }
 
 .fp-wrap {
+  position: relative;
   grid-column: 1;
   grid-row: 1 / -1;
   min-width: 0;
@@ -45,6 +46,64 @@
   /* Fixed viewport band so FP does not grow after load (was fighting inner min-height). */
   height: clamp(420px, calc(100vh - 200px), 880px);
   max-height: calc(100vh - 200px);
+}
+
+.win-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  border-radius: 20px;
+  background: rgba(16, 6, 14, 0.58);
+  backdrop-filter: blur(3px);
+}
+
+.win-overlay__panel {
+  max-width: 22rem;
+  text-align: center;
+  padding: 1.35rem 1.5rem 1.25rem;
+  border-radius: 18px;
+  background: linear-gradient(165deg, #fff9fc, #ffe3f0);
+  border: 3px solid #f783ac;
+  box-shadow: 0 12px 40px rgba(194, 37, 92, 0.25);
+}
+
+.win-overlay__title {
+  margin: 0 0 0.5rem;
+  font-size: clamp(1.75rem, 5vw, 2.35rem);
+  letter-spacing: 0.04em;
+  color: #c2255c;
+  text-shadow: 1px 1px 0 #fff;
+}
+
+.win-overlay__names {
+  margin: 0 0 0.65rem;
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #343a40;
+}
+
+.win-overlay__emoji {
+  font-size: 2rem;
+  vertical-align: -0.15em;
+}
+
+.win-overlay__winner {
+  font-size: 1.4rem;
+}
+
+.win-overlay__hint {
+  margin: 0;
+  font-size: 0.95rem;
+  color: #495057;
+  line-height: 1.45;
+}
+
+.turn--won .turn__label {
+  color: #c2255c;
 }
 
 .mini-map-wrap {
