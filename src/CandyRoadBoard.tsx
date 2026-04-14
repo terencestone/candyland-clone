@@ -21,6 +21,9 @@ type Props = {
 
 const R_PATH = 2.15;
 const R_SPECIAL = 2.75;
+const PAWN_RING_R = 3.55;
+const PAWN_BACKPLATE_R = 1.75;
+const PAWN_FONT_SIZE = 2.05;
 
 function safeSvgId(raw: string): string {
   const cleaned = raw.replace(/[^a-zA-Z0-9_-]/g, "");
@@ -161,24 +164,37 @@ export function CandyRoadBoard({ board, players, castleIndex }: Props) {
                 </text>
               )}
               {playersHere.map(({ pl }, ti) => {
-                const side = ti === 0 ? -1 : 1;
-                const ox = side * (r + 1.35);
-                const oy = 0;
+                const n = Math.max(1, playersHere.length);
+                const angle = (-Math.PI / 2) + (ti * (Math.PI * 2)) / n;
+                const ringR = Math.max(PAWN_RING_R, r + 2.3);
+                const ox = Math.cos(angle) * ringR;
+                const oy = Math.sin(angle) * ringR;
                 return (
                   <g key={pl.name} transform={`translate(${ox}, ${oy})`}>
                     <circle
-                      r={1.28}
+                      r={PAWN_BACKPLATE_R + 0.28}
+                      fill="rgba(0,0,0,0.18)"
+                      stroke="none"
+                      aria-hidden
+                    />
+                    <circle
+                      r={PAWN_BACKPLATE_R}
                       fill="#fffdf8"
-                      stroke="rgba(0,0,0,0.22)"
-                      strokeWidth={0.14}
+                      stroke="rgba(0,0,0,0.25)"
+                      strokeWidth={0.2}
+                      aria-hidden
                     />
                     <text
                       x={0}
-                      y={0.08}
+                      y={0.1}
                       textAnchor="middle"
                       dominantBaseline="central"
-                      fontSize={1.5}
-                      style={{ userSelect: "none" }}
+                      fontSize={PAWN_FONT_SIZE}
+                      style={{
+                        userSelect: "none",
+                        fontFamily:
+                          '"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol","Noto Color Emoji",sans-serif',
+                      }}
                       aria-hidden
                     >
                       {pawnIcon(pl.name)}
