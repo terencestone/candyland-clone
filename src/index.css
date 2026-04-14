@@ -31,3 +31,9 @@ button {
   font: inherit;
   cursor: pointer;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    scroll-behavior: auto !important;
+  }
+}
