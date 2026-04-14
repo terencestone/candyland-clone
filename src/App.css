@@ -1,4 +1,6 @@
 .app {
+  /* Fill #root; without this, flex can shrink the app to ~content width (~800px). */
+  width: 100%;
   max-width: min(1680px, 96vw);
   margin: 0 auto;
   padding: 1rem 1.25rem 1.5rem;
@@ -8,9 +10,57 @@
 }
 
 .header {
-  text-align: center;
   margin-bottom: 0.85rem;
   flex-shrink: 0;
+}
+
+.header__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0.75rem 1.25rem;
+}
+
+.header__titles {
+  text-align: center;
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.music-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.15rem;
+  padding: 0.45rem 0.85rem;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #9d174d;
+  background: linear-gradient(180deg, #fff5fb, #ffe3f2);
+  border: 2px solid #f9a8d4;
+  border-radius: 999px;
+  box-shadow: 0 2px 8px rgba(194, 37, 92, 0.12);
+}
+
+.music-btn:hover {
+  background: linear-gradient(180deg, #fff, #ffd6ea);
+}
+
+.music-btn[aria-pressed="true"] {
+  border-color: #e64980;
+  background: linear-gradient(180deg, #ffe0f0, #ffc9e0);
+}
+
+.music-btn__icon {
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.music-btn__text {
+  white-space: nowrap;
 }
 
 .header h1 {
@@ -29,7 +79,8 @@
 
 .main-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(280px, 320px);
+  /* Reserve at least ~400px for the board so the trail column doesn’t collapse. */
+  grid-template-columns: minmax(420px, 1fr) minmax(280px, 320px);
   grid-template-rows: minmax(300px, 34vh) minmax(0, 1fr);
   gap: 1rem 1.25rem;
   align-items: stretch;
@@ -37,15 +88,32 @@
   flex: 1;
 }
 
-.fp-wrap {
-  position: relative;
+.board-wrap {
   grid-column: 1;
   grid-row: 1 / -1;
   min-width: 0;
   min-height: 0;
-  /* Fixed viewport band so FP does not grow after load (was fighting inner min-height). */
-  height: clamp(420px, calc(100vh - 200px), 880px);
-  max-height: calc(100vh - 200px);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  max-height: calc(100vh - 110px);
+  padding: 0 0.35rem 1rem;
+}
+
+/* Fill the grid column; fit-content was shrink-wrapping the SVG to ~min-content width. */
+.board-wrap__stage {
+  position: relative;
+  width: 100%;
+  max-width: min(1200px, 100%);
+  margin: 0 auto;
+}
+
+.board-wrap__stage .candy-road {
+  width: 100%;
+  max-width: 100%;
 }
 
 .win-overlay {
@@ -106,13 +174,46 @@
   color: #c2255c;
 }
 
-.mini-map-wrap {
+.trail-wrap {
   grid-column: 2;
   grid-row: 1;
   min-width: 0;
   min-height: 0;
+  max-height: 40vh;
   display: flex;
   flex-direction: column;
+  border-radius: 14px;
+  border: 2px solid rgba(255, 160, 200, 0.45);
+  background: rgba(255, 255, 255, 0.55);
+  overflow: hidden;
+}
+
+.trail-wrap__header {
+  flex-shrink: 0;
+  padding: 0.5rem 0.65rem;
+  border-bottom: 1px solid rgba(255, 160, 200, 0.35);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.75), rgba(255, 255, 255, 0.35));
+}
+
+.trail-wrap__title {
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #a61e4d;
+  text-shadow: 1px 1px 0 rgba(255, 255, 255, 0.85);
+  font-size: 0.95rem;
+}
+
+.trail-wrap__canvas {
+  flex: 1;
+  min-height: 220px;
+  position: relative;
+}
+
+.trail-wrap__canvas .fp-trail {
+  border-radius: 0 0 12px 12px;
+  border-width: 0;
+  border-top: 1px solid rgba(255, 160, 200, 0.25);
+  box-shadow: none;
 }
 
 .side-panel {

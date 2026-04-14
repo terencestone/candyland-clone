@@ -5,8 +5,8 @@ import {
   useRef,
   useState,
 } from "react";
+import { CandyRoadBoard } from "./CandyRoadBoard";
 import { FirstPersonTrail } from "./FirstPersonTrail";
-import { MiniMapBoard } from "./MiniMapBoard";
 import { castleIndex } from "./game/board";
 import { gameReducer, initialState } from "./game/gameReducer";
 import { animationDurationMs, findMover } from "./game/fpMath";
@@ -17,6 +17,7 @@ import {
   pawnIcon,
 } from "./game/icons";
 import type { BoardSpace, CandyColor, Card, Player } from "./game/types";
+import { useCandyBackgroundMusic } from "./audio/useCandyBackgroundMusic";
 import "./App.css";
 
 const COLOR_HEX: Record<CandyColor, string> = {
@@ -100,6 +101,7 @@ type TrailAnim = {
 };
 
 export default function App() {
+  const { enabled: musicOn, toggle: toggleMusic } = useCandyBackgroundMusic();
   const [state, dispatch] = useReducer(gameReducer, undefined, initialState);
   const castle = castleIndex(state.board);
   const current = state.players[state.currentPlayerIndex];
@@ -143,61 +145,84 @@ export default function App() {
   return (
     <div className="app">
       <header className="header">
-        <h1>Candy Land</h1>
-        <p className="sub">Same screen — Archer &amp; River take turns</p>
+        <div className="header__row">
+          <div className="header__titles">
+            <h1>Candy Land</h1>
+            <p className="sub">Same screen — Archer &amp; River take turns</p>
+          </div>
+          <button
+            type="button"
+            className="music-btn"
+            onClick={() => void toggleMusic()}
+            aria-pressed={musicOn}
+            aria-label={musicOn ? "Turn off background music" : "Turn on background music"}
+          >
+            <span className="music-btn__icon" aria-hidden>
+              {musicOn ? "🎵" : "🎶"}
+            </span>
+            <span className="music-btn__text">{musicOn ? "Music on" : "Music"}</span>
+          </button>
+        </div>
       </header>
 
       <div className="main-layout">
-        <div className="fp-wrap">
-          <FirstPersonTrail
-            board={state.board}
-            viewIndex={idleViewIndex}
-            turnPawnEmoji={turnPlayer ? pawnIcon(turnPlayer.name) : ""}
-            turnLabel={
-              state.phase === "won" && winner
-                ? `${winner.name} won the game`
-                : turnPlayer
-                  ? `${turnPlayer.name}'s turn`
-                  : undefined
-            }
-            animFromIdx={trailAnim?.fromIdx ?? null}
-            animToIdx={trailAnim?.toIdx ?? null}
-            animDurationMs={trailAnim?.durationMs ?? null}
-            animKey={trailAnim?.key ?? 0}
-            onAnimationComplete={onAnimDone}
-          />
-          {state.phase === "won" && winner ? (
-            <div
-              className="win-overlay"
-              role="alertdialog"
-              aria-modal="true"
-              aria-labelledby="win-overlay-title"
-              aria-describedby="win-overlay-desc"
-            >
-              <div className="win-overlay__panel">
-                <h2 id="win-overlay-title" className="win-overlay__title">
-                  You Win!
-                </h2>
-                <p id="win-overlay-desc" className="win-overlay__names">
-                  <span className="win-overlay__emoji" aria-hidden>
-                    {pawnIcon(winner.name)}
-                  </span>{" "}
-                  <span className="win-overlay__winner">{winner.name}</span>
-                </p>
-                <p className="win-overlay__hint">
-                  Game over — use <strong>New game</strong> to play again.
-                </p>
+        <div className="board-wrap">
+          <div className="board-wrap__stage">
+            <CandyRoadBoard
+              board={state.board}
+              players={state.players}
+              castleIndex={castle}
+            />
+            {state.phase === "won" && winner ? (
+              <div
+                className="win-overlay"
+                role="alertdialog"
+                aria-modal="true"
+                aria-labelledby="win-overlay-title"
+                aria-describedby="win-overlay-desc"
+              >
+                <div className="win-overlay__panel">
+                  <h2 id="win-overlay-title" className="win-overlay__title">
+                    You Win!
+                  </h2>
+                  <p id="win-overlay-desc" className="win-overlay__names">
+                    <span className="win-overlay__emoji" aria-hidden>
+                      {pawnIcon(winner.name)}
+                    </span>{" "}
+                    <span className="win-overlay__winner">{winner.name}</span>
+                  </p>
+                  <p className="win-overlay__hint">
+                    Game over — use <strong>New game</strong> to play again.
+                  </p>
+                </div>
               </div>
-            </div>
-          ) : null}
+            ) : null}
+          </div>
         </div>
 
-        <div className="mini-map-wrap">
-          <MiniMapBoard
-            board={state.board}
-            players={state.players}
-            castleIndex={castle}
-          />
+        <div className="trail-wrap" aria-label="Moving trail view">
+          <div className="trail-wrap__header">
+            <span className="trail-wrap__title">Trail view</span>
+          </div>
+          <div className="trail-wrap__canvas">
+            <FirstPersonTrail
+              board={state.board}
+              viewIndex={idleViewIndex}
+              turnPawnEmoji={turnPlayer ? pawnIcon(turnPlayer.name) : ""}
+              turnLabel={
+                state.phase === "won" && winner
+                  ? `${winner.name} won the game`
+                  : turnPlayer
+                    ? `${turnPlayer.name}'s turn`
+                    : undefined
+              }
+              animFromIdx={trailAnim?.fromIdx ?? null}
+              animToIdx={trailAnim?.toIdx ?? null}
+              animDurationMs={trailAnim?.durationMs ?? null}
+              animKey={trailAnim?.key ?? 0}
+              onAnimationComplete={onAnimDone}
+            />
+          </div>
         </div>
 
         <aside className="side-panel" aria-label="Game controls">
