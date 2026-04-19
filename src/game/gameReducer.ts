@@ -10,6 +10,7 @@ export function initialState(): GameState {
     board,
     drawPile: createDeck(),
     discardPile: [],
+    drawnLandmarks: [],
     players: [{ name: "Archer", position: 0 }, { name: "River", position: 0 }],
     currentPlayerIndex: 0,
     phase: "play",
@@ -22,9 +23,16 @@ export function initialState(): GameState {
 function reshuffleIfNeeded(state: GameState): GameState {
   if (state.drawPile.length > 0) return state;
   if (state.discardPile.length === 0) {
-    return { ...state, drawPile: createDeck() };
+    return {
+      ...state,
+      drawPile: createDeck({ excludeLandmarks: new Set(state.drawnLandmarks) }),
+    };
   }
-  const next = shuffle([...state.discardPile]);
+  const next = shuffle(
+    state.discardPile.filter(
+      (c) => c.kind !== "goto" || !state.drawnLandmarks.includes(c.landmark),
+    ),
+  );
   return { ...state, drawPile: next, discardPile: [] };
 }
 
@@ -68,6 +76,8 @@ function resolveCard(
     nextPos = findLandmarkIndex(board, card.landmark);
   } else {
     nextPos = applyColorCard(board, pos, card.color, card.count);
+    // Color cards should never move a player backwards.
+    if (nextPos < pos) nextPos = pos;
   }
 
   if (nextPos >= castle) nextPos = castle;
@@ -112,6 +122,10 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       ...s,
       drawPile: rest,
       discardPile: [...s.discardPile, card],
+      drawnLandmarks:
+        card.kind === "goto" && !s.drawnLandmarks.includes(card.landmark)
+          ? [...s.drawnLandmarks, card.landmark]
+          : s.drawnLandmarks,
       players: resolved.players,
       currentPlayerIndex: nextPlayerIndex,
       phase: resolved.phase,

@@ -46,6 +46,8 @@ export type GameState = {
   board: BoardSpace[];
   drawPile: Card[];
   discardPile: Card[];
+  /** Landmark ids whose picture card has already been drawn this game. */
+  drawnLandmarks: LandmarkId[];
   players: Player[];
   currentPlayerIndex: number;
   phase: "play" | "won";
