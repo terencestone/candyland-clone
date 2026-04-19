@@ -27,12 +27,10 @@ function shuffle<T>(items: T[]): T[] {
   return arr;
 }
 
-/**
- * Build a small but playable deck (singles, doubles, picture cards).
- * Picture ("go to landmark") cards are duplicated so they show up often enough
- * in short sessions — classic Candy Land is picture-card heavy.
- */
-export function createDeck(): Card[] {
+export function createDeck(opts?: {
+  /** Landmark ids whose picture cards should not be included. */
+  excludeLandmarks?: ReadonlySet<LandmarkId>;
+}): Card[] {
   const cards: Card[] = [];
 
   for (const c of COLORS) {
@@ -41,7 +39,8 @@ export function createDeck(): Card[] {
   }
 
   for (const lm of LANDMARKS) {
-    cards.push({ kind: "goto", landmark: lm });
+    if (opts?.excludeLandmarks?.has(lm)) continue;
+    // Landmark cards are single-use per game.
     cards.push({ kind: "goto", landmark: lm });
   }
 
